@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -49,7 +50,7 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				err := makeRequest("db1")
+				err := makeRequest("3323", "db1")
 				if err != nil {
 					fmt.Println("error:db1", err)
 				}
@@ -66,7 +67,7 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				err := makeRequest("db2")
+				err := makeRequest("3323", "db2")
 				if err != nil {
 					fmt.Println("error:db2", err)
 				}
@@ -83,7 +84,7 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				err := makeRequest("db3")
+				err := makeRequest("3323", "db3")
 				if err != nil {
 					fmt.Println("error:db3", err)
 				}
@@ -102,11 +103,12 @@ func main() {
 	}
 }
 
-func makeRequest(db string) error {
+func makeRequest(port, db string) error {
 	// login
+	baseURL := fmt.Sprintf("http://127.0.0.1:%s", port)
 	jsonBody := []byte(`{"user": "aW1tdWRi", "password": "aW1tdWRi"}`)
 	bodyReader := bytes.NewReader(jsonBody)
-	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:3324/login", bodyReader)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/%s", baseURL, "login"), bodyReader)
 	if err != nil {
 		fmt.Printf("client: could not create request: %s\n", err)
 		return err
@@ -128,7 +130,8 @@ func makeRequest(db string) error {
 	loginToken := dec["token"]
 
 	// select database
-	url := fmt.Sprintf("http://127.0.0.1:3324/db/use/%s", db)
+	url := fmt.Sprintf("%s/db/use/%s", baseURL, db)
+	// url := fmt.Sprintf("http://127.0.0.1:3323/db/use/%s", db)
 	req, err = http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		fmt.Printf("client: could not select db: %s\n", err)
@@ -151,11 +154,15 @@ func makeRequest(db string) error {
 		return err
 	}
 	dbToken := dec["token"]
+	if dbToken == "" {
+		return errors.New("database token not found")
+	}
 
 	// verified set
 	data := fmt.Sprintf("data%d", rand.Intn(1000000))
 	dataEnc := base64.StdEncoding.EncodeToString([]byte(data))
-	url = fmt.Sprintf("http://127.0.0.1:3324/db/verified/set")
+	url = fmt.Sprintf("%s/db/%s/verified/set", baseURL, db)
+	// url = fmt.Sprintf("http://127.0.0.1:3323/db/verified/set")
 	jsonBody = []byte(fmt.Sprintf(`{
 		"setRequest": {
 		  "KVs": [
@@ -193,7 +200,8 @@ func makeRequest(db string) error {
 	}
 
 	// verified get
-	url = fmt.Sprintf("http://127.0.0.1:3324/db/verified/get")
+	url = fmt.Sprintf("%s/db/%s/verified/get", baseURL, db)
+	// url = fmt.Sprintf("http://127.0.0.1:3323/db/verified/get")
 	jsonBody = []byte(fmt.Sprintf(`{
 		"keyRequest": {
 		  "key": "%s"
@@ -225,5 +233,6 @@ func makeRequest(db string) error {
 		return errors.New(fmt.Sprintf("get:%s", dresp))
 	}
 
+	log.Println("data: ", db, data)
 	return nil
 }
